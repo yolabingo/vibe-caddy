@@ -28,7 +28,7 @@ vibe-caddy is a stateless command-line tool plus a web dashboard. It runs no dae
 | Ports 80 and 443, TLS, proxying, WebSockets | [Caddy](https://caddyserver.com), as a root LaunchDaemon bound to loopback, with certificates from its own local CA trusted in the System keychain. |
 | Running your apps | launchd, one job per app: restart on crash, log redirection, PID tracking. |
 
-It is a ground-up rewrite of a Go tool, `local.vibe`, whose routing needed dnsmasq, an `/etc/resolver` file and pf redirect rules patched into `/etc/pf.conf`. Those rules silently vanished whenever anything else reloaded the packet filter. vibe-caddy touches none of that.
+Inspired by [local.vibe](https://github.com/graiz/local.vibe), and rewritten to replace firewall rules with Caddy. On macOS that tool routes traffic with pf redirect rules patched into `/etc/pf.conf`, plus dnsmasq and an `/etc/resolver` file. Caddy binds ports 80 and 443 directly instead, so vibe-caddy installs no firewall rules and no DNS server. vibe-caddy is macOS only; local.vibe also targets Windows.
 
 ## Requirements
 
