@@ -1,0 +1,7 @@
+The .svg files in this directory are from Simple Icons 16.34.0
+(https://simpleicons.org), released under CC0 1.0 Universal.
+
+The brand marks they depict remain the property of their respective
+owners; CC0 covers the icon files, not the trademarks.
+
+Regenerate with: uv run python scripts/vendor_icons.py

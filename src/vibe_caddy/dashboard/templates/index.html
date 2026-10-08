@@ -1,0 +1,103 @@
+{% from "_route.html" import item with context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>vibe-caddy</title>
+  <link rel="stylesheet" href="{{ asset('static/app.css') }}">
+  <link rel="stylesheet" href="{{ asset('static/icons.css') }}">
+</head>
+<body>
+  <header class="bar">
+    <h1>vibe-caddy</h1>
+    {#- Shown only once polling has actually failed; see app.js. Without it a
+        dashboard that has lost contact keeps displaying its last known state as
+        though it were current. -#}
+    <p id="conn" class="conn" role="status" aria-live="polite" hidden></p>
+    <div class="bar-actions">
+      <div class="toggle" role="group" aria-label="Layout">
+        <button type="button" data-view="grid" aria-pressed="{{ 'true' if view == 'grid' else 'false' }}">Grid</button>
+        <button type="button" data-view="list" aria-pressed="{{ 'true' if view == 'list' else 'false' }}">List</button>
+      </div>
+      <button type="button" id="new-route" class="primary">New route</button>
+    </div>
+  </header>
+
+  <main>
+    {#- Two groups so "what is serving?" is answered by position, not by reading
+        every badge. data-view is rendered server-side so the first paint already
+        has the right layout. -#}
+    {%- set live = routes | selectattr("live") | list %}
+    {%- set idle = routes | rejectattr("live") | list %}
+    <section class="group" id="group-live"{% if not live %} hidden{% endif %}>
+      <h2 class="group-head">Running <span class="count">{{ live | length }}</span></h2>
+      <ul id="routes" class="routes" data-view="{{ view }}">
+        {%- for r in live %}
+        {{ item(r) }}
+        {%- endfor %}
+      </ul>
+    </section>
+    <section class="group" id="group-idle"{% if not idle %} hidden{% endif %}>
+      <h2 class="group-head">Not running <span class="count">{{ idle | length }}</span></h2>
+      <ul id="routes-idle" class="routes" data-view="{{ view }}">
+        {%- for r in idle %}
+        {{ item(r) }}
+        {%- endfor %}
+      </ul>
+    </section>
+    <p id="empty" class="empty"{% if routes %} hidden{% endif %}>
+      No routes yet. Create one with <b>New route</b> or run
+      <code>vibe-caddy register &lt;name&gt; &lt;port&gt;</code>.
+    </p>
+  </main>
+
+  <footer class="foot">v{{ version }}</footer>
+
+  <dialog id="editor" aria-labelledby="editor-title">
+    <form method="dialog" id="editor-form" autocomplete="off">
+      <h2 id="editor-title">New route</h2>
+      <label>Name
+        <input name="name" required pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]*[a-z0-9])?)?" placeholder="myapp">
+      </label>
+      <label>Command
+        <input name="cmd" placeholder="npm run dev  (leave empty for a static port)">
+      </label>
+      <label>Directory
+        <input name="dir" placeholder="/Users/me/code/myapp">
+      </label>
+      <label>Port
+        <input name="port" type="number" min="1" max="65535" placeholder="auto">
+      </label>
+      <label>Icon
+        <input name="icon" placeholder="emoji or https://... image URL">
+      </label>
+      <label>URL
+        <input name="url" type="url" placeholder="https://example.com  (makes this a bookmark)">
+      </label>
+      <label class="check"><input type="checkbox" name="proxy"> Proxy the URL instead of redirecting</label>
+      <label class="check"><input type="checkbox" name="insecure_skip_verify"> Skip upstream TLS verification</label>
+      <label class="check"><input type="checkbox" name="autostart"> Start at login</label>
+      <p id="editor-error" class="error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="drawer" class="drawer" aria-labelledby="drawer-title">
+    <div class="drawer-head">
+      <h2 id="drawer-title">Log</h2>
+      <button type="button" id="log-refresh">Refresh</button>
+      <button type="button" data-close>Close</button>
+    </div>
+    <pre id="log" tabindex="0"></pre>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="{{ asset('static/app.js') }}" defer></script>
+</body>
+</html>

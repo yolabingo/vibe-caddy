@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{ host }} is not registered</title>
+  <link rel="stylesheet" href="{{ asset('static/app.css') }}">
+</head>
+<body class="unknown">
+  <main class="narrow">
+    <h1><span class="mono">{{ host }}</span> isn't registered</h1>
+    <p>Nothing is routed to this name yet. Create it with:</p>
+    <pre class="cmd">vibe-caddy register {{ name }} &lt;port&gt;</pre>
+    {% if routes %}
+    <h2>Registered routes</h2>
+    <ul class="plain">
+      {%- for r in routes %}
+      <li><a href="{{ r.href }}">{{ r.hostname }}</a></li>
+      {%- endfor %}
+    </ul>
+    {% endif %}
+  </main>
+</body>
+</html>

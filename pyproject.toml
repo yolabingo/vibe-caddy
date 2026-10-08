@@ -1,0 +1,70 @@
+[project]
+name = "vibe-caddy"
+version = "0.1.0"
+description = "Friendly https://<name>.localhost names for local dev servers, powered by Caddy and launchd."
+readme = "README.md"
+authors = [{ name = "Todd Jacobsen" }]
+license = "MIT"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.143.0",
+    "httpx2>=2.13.1",
+    "jinja2>=3.1.6",
+    "pydantic>=2.14.0",
+    "rich>=15.0.0",
+    "typer>=0.27.3",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+"vibe-caddy" = "vibe_caddy.cli:run"
+
+[project.urls]
+Homepage = "https://github.com/yolabingo/vibe-caddy"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+# `uv format` (Ruff) and `uv check` (ty) are native from 0.12.23 and still behind
+# preview flags. An older uv fails with "unrecognized subcommand 'check'", so the
+# floor is declared here to turn that into a clear error.
+required-version = ">=0.12.23"
+preview-features = ["format-command", "check-command", "audit-command"]
+
+[tool.uv.build-backend]
+module-name = "vibe_caddy"
+module-root = "src"
+
+# ---------------------------------------------------------------- lint / format
+# uv ships its own managed Ruff and ty; neither is a project dependency.
+#   uv format            format (Ruff formatter, reads [tool.ruff] below)
+#   uv format --check    verify formatting in CI
+#   uv check             type check (ty, reads [tool.ty] below)
+#   uv audit             dependency vulnerability audit
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ty.environment]
+python-version = "3.14"
+root = ["./src"]
+
+[tool.ty.rules]
+unresolved-import = "error"
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]

@@ -1,0 +1,327 @@
+/* System fonts and no network assets: the dashboard must work offline.
+
+   Dark is the base theme rather than a prefers-color-scheme variant: this is a
+   developer tool that should look the same on a light desktop as on a dark one.
+   `color-scheme: dark` also tells the browser to render form controls,
+   scrollbars and the dialog backdrop to match. */
+:root {
+  --bg: #0d1017;
+  --surface: #151a23;
+  --surface-2: #1e2531;
+  --surface-3: #262e3d;
+  --text: #e3e8f0;
+  --muted: #8b95a8;
+  --border: #272e3b;
+  --border-strong: #3a4455;
+  /* Deliberately neutral. On this dashboard the only thing worth seeing at a
+     glance is state, so saturation is reserved for it: green ready, amber
+     starting, red crashed. A coloured accent would compete with those while
+     carrying no meaning of its own. */
+  --accent: #a7b4c8;
+  --accent-hover: #c6d0de;
+  --accent-text: #0d1017;
+  --ok: #4ade80;
+  --ok-bg: #0f2a1b;
+  --warn: #fbbf24;
+  --warn-bg: #2c2008;
+  --bad: #f87171;
+  --bad-bg: #2d1316;
+  --idle: #8b95a8;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --radius: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 var(--font);
+}
+
+h1, h2 { margin: 0; font-weight: 650; }
+h1 { font-size: 1.25rem; }
+h2 { font-size: 1.05rem; }
+code, pre, .mono { font-family: var(--mono); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+button, input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+button:hover { border-color: var(--border-strong); background: var(--surface-3); }
+button:focus-visible, input:focus-visible, a:focus-visible, pre:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+button.danger:hover { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.bar-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+.conn {
+  margin: 0 auto 0 0.9rem;
+  font-size: 0.8rem;
+  color: var(--warn);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.conn::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* While the page is known to be out of date, drain the colour from the state
+   dots. A green "ready" from ten minutes ago is worse than no colour at all,
+   because it reads as a live fact. */
+body[data-stale] .badge.state { filter: grayscale(1); opacity: 0.65; }
+
+.toggle { display: inline-flex; }
+.toggle button { border-radius: 0; }
+.toggle button:first-child { border-radius: 7px 0 0 7px; }
+.toggle button:last-child { border-radius: 0 7px 7px 0; border-left: 0; }
+.toggle button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+main { padding: 1.25rem; max-width: 1200px; margin: 0 auto; }
+
+.group + .group { margin-top: 1.75rem; }
+.group-head {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+.group-head .count {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--idle);
+}
+/* A stopped group is reference material, not something to act on, so the
+   heading sits quieter than the running one above it. */
+#group-idle .group-head { color: var(--idle); }
+.foot { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 1rem; }
+.empty { color: var(--muted); text-align: center; padding: 3rem 0; }
+
+/* ----------------------------------------------------------- route items */
+.routes { list-style: none; margin: 0; padding: 0; }
+.routes[data-view="grid"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 0.9rem;
+}
+.routes[data-view="list"] { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.route {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.route:hover { border-color: var(--border-strong); background: var(--surface-2); }
+
+/* The grid should answer "what is running?" before it is read. A served route
+   keeps full weight; an idle one recedes; a broken one is marked on its edge. */
+.route[data-state="stopped"],
+.route[data-state="down"] {
+  background: none;
+  box-shadow: none;
+}
+/* Enough to recede, not so much that a thin mark like Rails disappears. */
+.route[data-state="stopped"] .icon,
+.route[data-state="down"] .icon { opacity: 0.72; }
+.route[data-state="stopped"] .name,
+.route[data-state="down"] .name { color: var(--muted); font-weight: 500; }
+.route[data-state="crashed"] { border-left: 3px solid var(--bad); }
+.route.child { border-left: 3px solid var(--border-strong); }
+.routes[data-view="list"] .route.child { margin-left: 2rem; }
+.routes[data-view="grid"] .route.child { margin-left: 0; }
+
+.icon {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow: hidden;
+  font-weight: 600;
+}
+.icon img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Framework logos are monochrome single-path marks drawn as a CSS mask, so they
+   take `currentColor` like text does. That keeps them on the same dark tile as
+   everything else -- no light panel behind each one -- and means a stopped
+   route's logo dims along with the rest of its card for free. */
+.icon .logo {
+  width: 58%;
+  height: 58%;
+  background: currentColor;
+  -webkit-mask: var(--logo) no-repeat center / contain;
+  mask: var(--logo) no-repeat center / contain;
+}
+
+.main { flex: 1; min-width: 0; }
+.title { display: flex; flex-wrap: wrap; gap: 0.1rem 0.6rem; align-items: baseline; }
+.name { font-weight: 650; }
+.host { font-family: var(--mono); font-size: 0.82rem; overflow-wrap: anywhere; }
+.meta { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.3rem; }
+.port { color: var(--muted); font-family: var(--mono); font-size: 0.82rem; }
+
+/* Plain text, not outlined pills: the route type is reference information and
+   should sit quietly behind the name and the state. */
+.badge { font-size: 0.78rem; color: var(--muted); }
+/* A static or bookmark route has no command, so there is nothing for the
+   dashboard to start. The type carries a tooltip saying so, because an absent
+   button otherwise reads as a missing feature. */
+.badge.type[title] { border-bottom: 1px dotted var(--border-strong); cursor: help; }
+
+/* State is the one thing worth spotting across a full grid, so it gets a
+   colour and a dot while everything around it stays monochrome. */
+.badge.state { display: inline-flex; align-items: center; gap: 0.33rem; color: var(--idle); }
+.badge.state::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.route[data-state="ready"] .badge.state,
+.route[data-state="up"] .badge.state { color: var(--ok); }
+/* Amber, not red: nothing is listening, but for a static route nobody ever
+   promised it would be. Red is kept for a managed process that actually died,
+   so it still means something when it appears. */
+.route[data-state="starting"] .badge.state,
+.route[data-state="down"] .badge.state { color: var(--warn); }
+.route[data-state="crashed"] .badge.state { color: var(--bad); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: flex-end; }
+.actions button { padding: 0.15rem 0.5rem; font-size: 0.82rem; }
+.lifecycle { display: contents; }
+.routes[data-view="grid"] .route { flex-wrap: wrap; }
+.routes[data-view="grid"] .actions { flex-basis: 100%; justify-content: flex-start; }
+.routes[data-view="list"] .route { align-items: center; }
+
+/* --------------------------------------------------------------- dialogs */
+dialog {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  width: min(32rem, calc(100vw - 2rem));
+}
+dialog::backdrop { background: rgb(0 0 0 / 60%); }
+dialog form { display: flex; flex-direction: column; gap: 0.7rem; }
+dialog label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+dialog label.check { flex-direction: row; align-items: center; gap: 0.5rem; color: var(--text); }
+dialog input:not([type="checkbox"]) {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.4rem 0.6rem;
+  color: var(--text);
+}
+input[readonly] { opacity: 0.6; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.4rem; }
+.error { color: var(--bad); margin: 0; font-size: 0.9rem; }
+
+dialog.drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: min(48rem, 100vw);
+  border-radius: var(--radius) 0 0 var(--radius);
+  border-right: 0;
+}
+/* Scoped to [open]: a bare `display: flex` here would override the UA's
+   `display: none` for a closed dialog, leaving the drawer permanently on
+   screen and never actually opened. */
+dialog.drawer[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.drawer-head { display: flex; align-items: center; gap: 0.5rem; }
+.drawer-head h2 { flex: 1; overflow-wrap: anywhere; }
+#log {
+  flex: 1;
+  margin: 0;
+  overflow: auto;
+  min-height: 0;
+  background: #090b10;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.7rem;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 2rem);
+  background: var(--text);
+  color: var(--bg);
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+/* --------------------------------------------------- unknown-name page */
+.narrow { max-width: 38rem; margin: 4rem auto; }
+.narrow h1 { font-size: 1.4rem; margin-bottom: 1rem; overflow-wrap: anywhere; }
+.cmd { background: var(--surface-2); padding: 0.8rem 1rem; border-radius: 8px; overflow-x: auto; }
+.plain { padding-left: 1.2rem; }
+
+@media (max-width: 640px) {
+  .bar { padding: 0.7rem 1rem; }
+  main { padding: 0.9rem; }
+  .routes[data-view="list"] .route { flex-wrap: wrap; }
+  .routes[data-view="list"] .actions { flex-basis: 100%; justify-content: flex-start; }
+  .routes[data-view="list"] .route.child { margin-left: 1rem; }
+}

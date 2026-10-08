@@ -1,0 +1,68 @@
+# uv.lock is deliberately committed: this is an application, not a library, so
+# a reproducible resolution is wanted.
+
+# Python bytecode and extensions
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Packaging and build output
+build/
+dist/
+sdist/
+wheels/
+*.egg
+*.egg-info/
+.eggs/
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test, coverage and task runners
+.pytest_cache/
+.cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+*.cover
+
+# Type checkers and linters. uv manages Ruff and ty itself, so only their
+# caches land here, never the tools.
+.ruff_cache/
+.ty_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+Icon?
+
+# Editors
+.idea/
+*.swp
+*~
+
+# Transient review reports; findings are fixed and recorded in git history.
+REVIEW.md

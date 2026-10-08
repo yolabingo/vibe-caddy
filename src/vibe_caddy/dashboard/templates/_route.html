@@ -1,0 +1,50 @@
+{#- One route row/card. static/app.js builds the identical structure for routes that
+    appear after page load, so keep the two in step. -#}
+{#- Icon precedence: an explicit icon the user set, then the vendored logo for
+    the framework the app was scaffolded from, then the first letter. -#}
+{% macro icon(r) -%}
+  {%- if is_image_url(r.icon) -%}
+    <img src="{{ r.icon }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+  {%- elif not r.icon and framework_icon(r.framework) -%}
+    <span class="logo" data-framework="{{ r.framework }}"></span>
+  {%- elif r.icon -%}
+    {#- A text icon is a glyph, not a label: anything longer would be clipped
+        mid-word by the fixed-size box. -#}
+    {{ r.icon if r.icon | length <= 2 else r.icon[:1] }}
+  {%- else -%}
+    {{ r.name[:1] | upper }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro item(r) -%}
+<li class="route{{ ' child' if r.parent }}" data-name="{{ r.name }}" data-parent="{{ r.parent or '' }}"
+    data-state="{{ r.state }}" data-type="{{ r.type }}" data-icon="{{ r.icon or '' }}" data-framework="{{ r.framework or '' }}">
+  <div class="icon" aria-hidden="true">{{ icon(r) }}</div>
+  <div class="main">
+    <div class="title">
+      <span class="name">{{ r.name }}</span>
+      <a class="host" href="{{ r.href }}" target="_blank" rel="noopener">{{ r.hostname }}</a>
+    </div>
+    <div class="meta">
+      <span class="badge type"
+        {%- if r.type not in ('managed', 'worktree') %} title="vibe-caddy routes this name but does not run it: there is no command to start"{% endif %}>{{ r.type }}</span>
+      <span class="badge state"{% if r.pid %} title="pid {{ r.pid }}"{% endif %}>{{ r.state }}</span>
+      <span class="port">{% if r.port %}:{{ r.port }}{% endif %}</span>
+    </div>
+  </div>
+  <div class="actions">
+    <span class="lifecycle"{% if r.type not in ('managed', 'worktree') %} hidden{% endif %}>
+      <button type="button" data-action="start" title="Start">Start</button>
+      <button type="button" data-action="stop" title="Stop">Stop</button>
+      <button type="button" data-action="restart" title="Restart">Restart</button>
+    </span>
+    {#- A route with no command cannot be started, so instead of a Start button
+        that would fail, offer the thing that would make it startable. -#}
+    <button type="button" data-action="adopt" title="Give this route a command so vibe-caddy can run it"
+      {% if r.type != 'static' %}hidden{% endif %}>Add command</button>
+    <button type="button" data-action="log" title="View log">Log</button>
+    <button type="button" data-action="edit" title="Edit">Edit</button>
+    <button type="button" data-action="delete" class="danger" title="Delete">Delete</button>
+  </div>
+</li>
+{%- endmacro %}
