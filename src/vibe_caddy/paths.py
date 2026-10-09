@@ -34,10 +34,10 @@ LABEL_PREFIX = "dev.vibe-caddy"
 CADDY_LABEL = f"{LABEL_PREFIX}.caddy"
 
 #: Route name reserved for the dashboard.
-DASHBOARD_ROUTE = "vibe"  # served at https://vibe.localhost
+DASHBOARD_ROUTE = "vibe"  # served at https://vibe.vc.localhost
 
-#: The only TLD vibe serves. Resolved to loopback by macOS without any DNS setup.
-TLD = "localhost"
+#: The hostname suffix vibe serves. macOS resolves it to loopback without DNS setup.
+TLD = "vc.localhost"
 
 #: Caddy's admin API. Loopback-only; used for config reloads.
 CADDY_ADMIN = "127.0.0.1:2019"

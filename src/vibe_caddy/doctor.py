@@ -127,10 +127,10 @@ def _listeners() -> Iterator[Check]:
 
 
 def _resolution() -> Check:
-    """Confirm the OS resolves a ``.localhost`` name to loopback.
+    """Confirm the OS resolves a ``.vc.localhost`` name to loopback.
 
     This needs no setup on macOS, so a failure here points at something unusual:
-    a DNS proxy intercepting the TLD, or a ``/etc/hosts`` entry overriding it.
+    a DNS proxy intercepting the suffix, or a ``/etc/hosts`` entry overriding it.
     """
     import socket
 
@@ -154,7 +154,7 @@ def _resolution() -> Check:
         "name resolution",
         Level.FAIL,
         f"{probe} resolves to {', '.join(sorted(addresses))}, not loopback",
-        "remove the DNS override sending .localhost elsewhere",
+        "remove the DNS override sending .vc.localhost elsewhere",
     )
 
 
@@ -164,7 +164,7 @@ def _ca() -> Check:
             "tls ca",
             Level.WARN,
             "Caddy has not generated its CA yet",
-            "visit any https://<name>.localhost once, then: sudo vibe-caddy setup",
+            "visit any https://<name>.vc.localhost once, then: sudo vibe-caddy setup",
         )
     if install.ca_is_trusted():
         return Check("tls ca", Level.OK, "trusted in the System keychain")

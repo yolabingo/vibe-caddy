@@ -22,7 +22,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr(caddy, "is_running", lambda: False)
     monkeypatch.setattr(ports, "is_listening", lambda port: False)
     monkeypatch.setattr(launchd, "state", lambda label: launchd.JobState(False))
-    return TestClient(create_app(), base_url="http://vibe.localhost")
+    return TestClient(create_app(), base_url="http://vibe.vc.localhost")
 
 
 def test_health(client: TestClient) -> None:
@@ -38,8 +38,8 @@ def test_routes_listing_includes_status(client: TestClient) -> None:
     (route,) = client.get("/_api/routes").json()
     assert route["name"] == "web"
     assert route["state"] == "down"
-    assert route["hostname"] == "web.localhost"
-    assert route["href"] == "https://web.localhost"
+    assert route["hostname"] == "web.vc.localhost"
+    assert route["href"] == "https://web.vc.localhost"
     assert route["listening"] is False
     assert route["pid"] is None
 
@@ -132,7 +132,7 @@ def test_missing_origin_allowed(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "origin",
     [
-        "https://vibe.localhost",
+        "https://vibe.vc.localhost",
         "http://localhost:7999",
         "http://127.0.0.1:7999",
         "http://[::1]:7999",
@@ -150,16 +150,33 @@ def test_registered_app_trusted_but_bookmark_is_not(client: TestClient) -> None:
     ok = client.post(
         "/_api/routes",
         json={"name": "x", "port": 3300},
-        headers={"Origin": "https://app.localhost"},
+        headers={"Origin": "https://app.vc.localhost"},
     )
     assert ok.status_code == 201
 
     denied = client.post(
         "/_api/routes",
         json={"name": "y", "port": 3301},
-        headers={"Origin": "https://docs.localhost"},
+        headers={"Origin": "https://docs.vc.localhost"},
     )
     assert denied.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://vibe.localhost",
+        "https://app.localhost",
+        "https://vc.localhost",
+        "https://app.vc.localhost.example.com",
+        "https://app.notvc.localhost",
+        "https://unknown.vc.localhost",
+    ],
+)
+def test_origins_outside_registered_vc_routes_are_rejected(client: TestClient, origin: str) -> None:
+    client.post("/_api/routes", json={"name": "app", "port": 3200})
+    response = client.post("/_api/routes", json=WRITE, headers={"Origin": origin})
+    assert response.status_code == 403
 
 
 def test_reads_are_not_guarded(client: TestClient) -> None:
@@ -172,22 +189,28 @@ def test_reads_are_not_guarded(client: TestClient) -> None:
 
 def test_unknown_hostname_page(client: TestClient) -> None:
     client.post("/_api/routes", json={"name": "web", "port": 3100})
-    response = client.get("/", headers={"Host": "ghost.localhost"})
+    response = client.get("/", headers={"Host": "ghost.vc.localhost"})
     assert response.status_code == 404
-    assert "ghost.localhost" in response.text
+    assert "ghost.vc.localhost" in response.text
     assert "vibe-caddy register ghost &lt;port&gt;" in response.text
-    assert 'href="https://web.localhost"' in response.text
+    assert 'href="https://web.vc.localhost"' in response.text
 
 
 def test_unknown_hostname_escapes_host(client: TestClient) -> None:
-    response = client.get("/", headers={"Host": "<b>.localhost"})
+    response = client.get("/", headers={"Host": "<b>.vc.localhost"})
     assert response.status_code == 404
     assert "<b>" not in response.text
 
 
+def test_unknown_worktree_hostname_preserves_the_route_name(client: TestClient) -> None:
+    response = client.get("/", headers={"Host": "feat.app.vc.localhost"})
+    assert response.status_code == 404
+    assert "vibe-caddy register feat.app &lt;port&gt;" in response.text
+
+
 def test_registered_hostname_is_not_unknown_page(client: TestClient) -> None:
     client.post("/_api/routes", json={"name": "web", "port": 3100})
-    assert client.get("/", headers={"Host": "web.localhost"}).status_code == 200
+    assert client.get("/", headers={"Host": "web.vc.localhost"}).status_code == 200
 
 
 # ------------------------------------------------------------------ caching

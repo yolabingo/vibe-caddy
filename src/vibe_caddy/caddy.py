@@ -12,7 +12,7 @@ Three details are worth knowing:
   "unknown name" page. Serving an arbitrary unregistered hostname over HTTPS means
   minting a certificate for a name we have never seen, so on-demand issuance is
   enabled and gated by an ``ask`` endpoint -- which Caddy serves to itself on
-  loopback, admitting only names under ``.localhost``.
+  loopback, admitting only names under ``.vc.localhost``.
 
 * **Origin rewriting on upgrades.** Dev servers increasingly reject WebSocket
   upgrades whose ``Origin`` is not one they recognise. Next.js's HMR client reloads
@@ -80,7 +80,7 @@ def _proxy_target(route: Route, indent: str) -> tuple[str, str]:
     anything with a path, so a bookmark like ``https://example.com/docs/`` cannot be
     handed over whole. The authority becomes the upstream and the path (and query)
     become an explicit ``rewrite`` that prefixes every request, which is what
-    "proxy to that URL" means: ``/x`` on the ``.localhost`` name reaches
+    "proxy to that URL" means: ``/x`` on the ``.vc.localhost`` name reaches
     ``/docs/x`` upstream. A bare ``/`` or no path needs no rewrite.
 
     Returns:
@@ -106,7 +106,7 @@ def _proxy_target(route: Route, indent: str) -> tuple[str, str]:
 def _bookmark(route: Route, indent: str = "\t") -> str:
     """Render a bookmark: a redirect by default, a reverse proxy when asked.
 
-    A proxied bookmark keeps the ``.localhost`` name in the address bar, which
+    A proxied bookmark keeps the ``.vc.localhost`` name in the address bar, which
     matters for upstreams whose own hostname is not resolvable from the browser
     (a Tailscale node, a device on another VLAN).
     """
@@ -125,7 +125,7 @@ def _bookmark(route: Route, indent: str = "\t") -> str:
     # untrusted proxy; we are a local dev front end, so drop it.
     lines.append(f"{indent}\theader_up -X-Forwarded-For\n")
     # A Domain= on a cookie set for the upstream host will not match the
-    # .localhost name the browser is actually on, so the cookie would be dropped.
+    # .vc.localhost name the browser is actually on, so the cookie would be dropped.
     lines.append(f"{indent}\theader_down Set-Cookie (?i);\\s*domain=[^;]* ''\n")
     if route.insecure_skip_verify:
         lines.append(f"{indent}\ttransport http {{\n")
@@ -169,13 +169,12 @@ def render(data: RegistryData, dashboard_port: int | None = None) -> str:
         "\t}\n",
         "}\n\n",
         "# Gate for on-demand certificates. Loopback-only, and reached only by\n",
-        "# Caddy itself. Admits any name under .localhost and refuses the rest.\n",
+        f"# Caddy itself. Admits any name under .{paths.TLD} and refuses the rest.\n",
         "# A CEL expression, not a `query` matcher: that matcher compares values\n",
-        '# exactly and treats `*` as "any value", so a `*.localhost` pattern there\n',
+        f'# exactly and treats `*` as "any value", so a `*.{paths.TLD}` pattern there\n',
         "# silently matches nothing and every certificate request is refused.\n",
         f"http://{_LOOPBACK}:{paths.CADDY_ASK_PORT} {{\n",
-        f"\t@allowed expression `{{query.domain}} == '{paths.TLD}' "
-        f"|| {{query.domain}}.endsWith('.{paths.TLD}')`\n",
+        f"\t@allowed expression `{{query.domain}}.endsWith('.{paths.TLD}')`\n",
         "\trespond @allowed 200\n",
         "\trespond 403\n",
         "}\n\n",
@@ -190,7 +189,10 @@ def render(data: RegistryData, dashboard_port: int | None = None) -> str:
     out.append(_bind_line())
     out.append("\ttls {\n\t\ton_demand\n\t}\n")
     if dashboard_port is not None:
-        out.append(f"\treverse_proxy {_LOOPBACK}:{dashboard_port}\n")
+        # Refuse other namespaces over HTTP and when an old certificate is cached.
+        out.append(f"\t@vibe expression `{{host}}.endsWith('.{paths.TLD}')`\n")
+        out.append(f"\treverse_proxy @vibe {_LOOPBACK}:{dashboard_port}\n")
+        out.append('\trespond "No vibe-caddy route for {host}." 404\n')
     else:
         out.append('\trespond "No vibe-caddy route for {host}." 404\n')
     out.append("}\n")

@@ -2,7 +2,7 @@
 
 This is the whole of vibe-caddy's system footprint, and it is deliberately small.
 There is no DNS server, no ``/etc/resolver`` file and no packet-filter rule: macOS
-already resolves every name under ``.localhost`` to loopback, and Caddy binds 80
+already resolves every name under ``.vc.localhost`` to loopback, and Caddy binds 80
 and 443 directly because launchd starts it as root.
 
 Three things are installed:
@@ -10,7 +10,7 @@ Three things are installed:
 1. ``/Library/LaunchDaemons/dev.vibe-caddy.caddy.plist`` -- runs Caddy as root.
 2. ``$XDG_STATE_HOME/vibe-caddy/Caddyfile`` -- the configuration it loads.
 3. Caddy's own CA root, added to the System keychain so browsers accept the
-   certificates Caddy mints for ``*.localhost``.
+   certificates Caddy mints for ``*.vc.localhost``.
 
 Uninstalling reverses exactly those three.
 """
@@ -378,7 +378,7 @@ def trust_ca() -> None:
     if not root.exists():
         raise VibeError(
             f"Caddy has not generated its CA yet (expected {root})",
-            hint="make one request to any https://<name>.localhost, then re-run setup",
+            hint="make one request to any https://<name>.vc.localhost, then re-run setup",
         )
     result = subprocess.run(
         [

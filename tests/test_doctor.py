@@ -56,7 +56,7 @@ def test_installed_caddy_reports_version(stubbed: None) -> None:
 
 
 def test_resolution_ok_on_this_machine() -> None:
-    # No stubbing on purpose: macOS resolving *.localhost to loopback is the premise of vibe.
+    # No stubbing on purpose: macOS resolving *.vc.localhost to loopback is the premise of vibe.
     check = doctor._resolution()
     assert check.level is Level.OK, check.detail
 

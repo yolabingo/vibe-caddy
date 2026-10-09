@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx2
 import pytest
 from typer.testing import CliRunner
 
@@ -37,6 +38,11 @@ def test_version() -> None:
     assert __version__ in result.stdout
 
 
+def test_framework_list_uses_the_vc_hostname_in_angular_command() -> None:
+    angular = next(row for row in service.framework_rows() if row.name == "angular")
+    assert "--allowed-hosts <name>.vc.localhost" in angular.command
+
+
 def test_list_empty() -> None:
     result = runner.invoke(app, ["list"])
     assert result.exit_code == 0
@@ -46,7 +52,7 @@ def test_list_empty() -> None:
 def test_register_then_list() -> None:
     registered = runner.invoke(app, ["register", "web", "3100"])
     assert registered.exit_code == 0, registered.output
-    assert "https://web.localhost" in registered.stdout
+    assert "https://web.vc.localhost" in registered.stdout
     assert "web" in registry.load().routes
 
     listed = runner.invoke(app, ["list"])
@@ -94,7 +100,7 @@ def test_caddyfile_prints_config() -> None:
     runner.invoke(app, ["register", "web", "3100"])
     result = runner.invoke(app, ["caddyfile"])
     assert result.exit_code == 0
-    assert "web.localhost" in result.stdout
+    assert "web.vc.localhost" in result.stdout
     assert "bind 127.0.0.1 ::1" in result.stdout
     assert paths.caddyfile().exists()
 
@@ -262,6 +268,23 @@ def test_init_records_an_absolute_directory(
 
 
 # ---------------------------------------------------------------------- setup
+
+
+def test_ca_priming_requests_the_new_dashboard_hostname(monkeypatch: pytest.MonkeyPatch) -> None:
+    requested = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        requested.append(str(request.url))
+        return httpx2.Response(404)
+
+    client_type = httpx2.Client
+    monkeypatch.setattr(
+        provision.httpx2,
+        "Client",
+        lambda **kwargs: client_type(transport=httpx2.MockTransport(respond), **kwargs),
+    )
+    provision._prime_ca()
+    assert requested == ["https://vibe.vc.localhost"]
 
 
 @pytest.fixture

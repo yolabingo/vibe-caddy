@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import shutil
 import subprocess
 import threading
@@ -48,7 +49,9 @@ def caddyfile_path(tmp_path: Path) -> Path:
 
 def run_caddy(*args: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "XDG_DATA_HOME": str(tmp_path / "xdg"), "XDG_CONFIG_HOME": str(tmp_path)}
-    return subprocess.run(["caddy", *args], capture_output=True, text=True, env=env, timeout=60)
+    return subprocess.run(
+        ["caddy", *args], capture_output=True, text=True, env=env, timeout=60, check=False
+    )
 
 
 @needs_caddy
@@ -74,6 +77,41 @@ def test_render_is_valid_and_canonical(
     assert not [ln for ln in fmt.stdout.splitlines() if ln[:1] in "+-"]
 
 
+@needs_caddy
+def test_certificate_policies_cover_routes_and_use_the_local_ca(
+    caddyfile_path: Path, tmp_path: Path
+) -> None:
+    data = full_registry()
+    caddyfile_path.write_text(caddy.render(data, dashboard_port=7999))
+    adapted = run_caddy(
+        "adapt", "--adapter", "caddyfile", "--config", str(caddyfile_path), tmp_path=tmp_path
+    )
+    assert adapted.returncode == 0, adapted.stderr
+    config = json.loads(adapted.stdout)
+    automation = config["apps"]["tls"]["automation"]
+    assert automation["on_demand"]["permission"]["endpoint"] == "http://127.0.0.1:2021/check"
+    policies = automation["policies"]
+    subjects = {host for policy in policies for host in policy.get("subjects", [])}
+    assert subjects == {
+        "app.vc.localhost",
+        "feat.app.vc.localhost",
+        "static.vc.localhost",
+        "redir.vc.localhost",
+        "proxied.vc.localhost",
+    }
+    assert all(policy["issuers"] == [{"module": "internal"}] for policy in policies)
+    assert any(policy.get("on_demand") for policy in policies)
+
+
+def test_certificate_gate_only_admits_names_below_vc_localhost() -> None:
+    text = caddy.render(RegistryData())
+    gate = text.split("http://127.0.0.1:2021 {", 1)[1].split("\n}\n", 1)[0]
+    assert "@allowed expression `{query.domain}.endsWith('.vc.localhost')`" in gate
+    assert "respond @allowed 200" in gate
+    assert "respond 403" in gate
+    assert "||" not in gate
+
+
 def test_every_route_hostname_appears() -> None:
     text = caddy.render(full_registry())
     for route in full_registry().routes.values():
@@ -84,11 +122,11 @@ def test_ws_matcher_only_when_origin_rewrite_enabled() -> None:
     blocks = {
         b.split("https://")[1].split(",")[0]: b for b in site_blocks(caddy.render(full_registry()))
     }
-    assert "@upgrade" in blocks["app.localhost"]
-    assert "@upgrade" in blocks["feat.app.localhost"]
-    assert "@upgrade" not in blocks["static.localhost"]
-    assert "header_up Origin http://127.0.0.1:3000" in blocks["app.localhost"]
-    assert "reverse_proxy 127.0.0.1:3002" in blocks["static.localhost"]
+    assert "@upgrade" in blocks["app.vc.localhost"]
+    assert "@upgrade" in blocks["feat.app.vc.localhost"]
+    assert "@upgrade" not in blocks["static.vc.localhost"]
+    assert "header_up Origin http://127.0.0.1:3000" in blocks["app.vc.localhost"]
+    assert "reverse_proxy 127.0.0.1:3002" in blocks["static.vc.localhost"]
 
 
 def test_bind_in_every_site_block_including_catch_all() -> None:
@@ -111,8 +149,8 @@ def test_bookmark_rendering() -> None:
 @pytest.mark.parametrize(
     ("dashboard_port", "expected", "absent"),
     [
-        (None, "respond ", "reverse_proxy 127.0.0.1:7999"),
-        (7999, "reverse_proxy 127.0.0.1:7999", ""),
+        (None, "respond ", "reverse_proxy"),
+        (7999, "reverse_proxy @vibe 127.0.0.1:7999", ""),
     ],
 )
 def test_catch_all_dashboard(dashboard_port: int | None, expected: str, absent: str) -> None:
@@ -121,7 +159,8 @@ def test_catch_all_dashboard(dashboard_port: int | None, expected: str, absent: 
     if absent:
         assert absent not in catch_all
     else:
-        assert "respond" not in catch_all.split("on_demand")[1]
+        assert "@vibe expression `{host}.endsWith('.vc.localhost')`" in catch_all
+        assert 'respond "No vibe-caddy route for {host}." 404' in catch_all
 
 
 def test_no_dashboard_catch_all_has_no_reverse_proxy() -> None:
@@ -132,7 +171,7 @@ def test_no_dashboard_catch_all_has_no_reverse_proxy() -> None:
 
 def test_routes_are_sorted_by_name() -> None:
     text = caddy.render(full_registry())
-    hosts = [h for h in (f"{n}.localhost" for n in sorted(full_registry().routes))]
+    hosts = [h for h in (f"{n}.vc.localhost" for n in sorted(full_registry().routes))]
     positions = [text.index(f"https://{h},") for h in hosts]
     assert positions == sorted(positions)
 
@@ -168,7 +207,7 @@ def bookmark_registry() -> RegistryData:
 
 
 def block_for(text: str, name: str) -> str:
-    prefix = f"https://{name}.localhost,"
+    prefix = f"https://{name}.vc.localhost,"
     return next(b.lstrip() for b in site_blocks(text) if b.lstrip().startswith(prefix))
 
 
@@ -281,5 +320,5 @@ def test_concurrent_reloads_publish_the_latest_registry(
     thread_b.join(timeout=10)
 
     text = paths.caddyfile().read_text()
-    assert "a.localhost" in text
-    assert "b.localhost" in text
+    assert "a.vc.localhost" in text
+    assert "b.vc.localhost" in text

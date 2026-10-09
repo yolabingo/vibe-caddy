@@ -36,8 +36,8 @@ def test_build_plist_contents() -> None:
     assert plist["EnvironmentVariables"] == {
         "PORT": "3000",
         "VIBE_ROUTE": "web",
-        "VIBE_URL": "https://web.localhost",
-        "VIBE_HOSTNAME": "web.localhost",
+        "VIBE_URL": "https://web.vc.localhost",
+        "VIBE_HOSTNAME": "web.vc.localhost",
         "PORT_WS": "3001",
         "PORT_DB_ADMIN": "3002",
     }
@@ -48,6 +48,15 @@ def test_build_plist_defaults_to_the_users_login_shell(monkeypatch: pytest.Monke
     args = launchd.build_plist(managed())["ProgramArguments"]
     assert isinstance(args, list)
     assert args[0] == "/bin/fish"
+
+
+def test_worktree_environment_uses_the_full_vc_hostname() -> None:
+    route = managed(name="feat.web", type=RouteType.WORKTREE, parent="web")
+    environment = launchd.build_plist(route, shell="/bin/zsh")["EnvironmentVariables"]
+    assert isinstance(environment, dict)
+    assert environment["VIBE_ROUTE"] == "feat.web"
+    assert environment["VIBE_URL"] == "https://feat.web.vc.localhost"
+    assert environment["VIBE_HOSTNAME"] == "feat.web.vc.localhost"
 
 
 @pytest.mark.parametrize("missing", ["cmd", "dir", "port"])

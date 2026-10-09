@@ -14,7 +14,7 @@ from .paths import PORT_RANGE
 def is_free(port: int) -> bool:
     """Return True if nothing is listening on ``port`` on either loopback family.
 
-    Both families are checked because macOS resolves ``*.localhost`` to ``::1``
+    Both families are checked because macOS resolves ``*.vc.localhost`` to ``::1``
     first; a server bound only to ``127.0.0.1`` still conflicts with one binding
     the wildcard address, and vice versa.
 

@@ -1,6 +1,6 @@
 # vibe-caddy
 
-Give every local dev server a stable `https://<name>.localhost` address with a trusted certificate.
+Give every local dev server a stable `https://<name>.vc.localhost` address with a trusted certificate.
 
 ![The vibe-caddy dashboard, with routes grouped into Running and Not running](docs/dashboard.png)
 
@@ -13,18 +13,18 @@ Without vibe-caddy you have a wall of tabs: `localhost:3000`, `localhost:5173`, 
 With it, each app has a name that stays put:
 
 ```
-https://myapp.localhost
-https://feature-auth.myapp.localhost     (a git worktree of the same app)
-https://api.localhost
+https://myapp.vc.localhost
+https://feature-auth.myapp.vc.localhost     (a git worktree of the same app)
+https://api.vc.localhost
 ```
 
-The certificate is trusted, WebSockets work, and an app that crashes is restarted. `*.localhost` needs no DNS setup, no `/etc/hosts` edit and no `/etc/resolver` file.
+The certificate is trusted, WebSockets work, and an app that crashes is restarted. `*.vc.localhost` needs no DNS setup, no `/etc/hosts` edit and no `/etc/resolver` file.
 
 vibe-caddy is a stateless command-line tool plus a web dashboard. It runs no daemon of its own. It writes configuration for three things already on your Mac:
 
 | Concern | Handled by |
 | --- | --- |
-| Name resolution | The macOS resolver, which sends `*.localhost` to loopback at any depth. |
+| Name resolution | The macOS resolver, which sends `*.vc.localhost` to loopback at any depth. |
 | Ports 80 and 443, TLS, proxying, WebSockets | [Caddy](https://caddyserver.com), as a root LaunchDaemon bound to loopback, with certificates from its own local CA trusted in the System keychain. |
 | Running your apps | launchd, one job per app: restart on crash, log redirection, PID tracking. |
 
@@ -47,14 +47,14 @@ sudo vibe-caddy setup
 
 If `sudo` cannot find the command, use `sudo "$(which vibe-caddy)" setup`.
 
-`setup` installs the Caddy LaunchDaemon, trusts Caddy's local CA in the System keychain, and starts the dashboard at `https://vibe.localhost`. It checks ports 80 and 443 first and changes nothing if either is held.
+`setup` installs the Caddy LaunchDaemon, trusts Caddy's local CA in the System keychain, and starts the dashboard at `https://vibe.vc.localhost`. It checks ports 80 and 443 first and changes nothing if either is held.
 
 Then, in any project:
 
 ```bash
 cd ~/code/myapp
 vibe-caddy init -w auto      # detect the framework, write vibe-caddy.toml, start the app
-vibe-caddy open myapp        # or visit https://myapp.localhost
+vibe-caddy open myapp        # or visit https://myapp.vc.localhost
 ```
 
 Use `-w <framework>` (for example `-w vite`) to name the preset yourself. To review the command before anything runs, use plain `vibe-caddy init`, edit `vibe-caddy.toml`, then run `vibe-caddy start`.
@@ -82,14 +82,14 @@ vibe-caddy problem rather than a framework setting.
 
 | Framework | Add to |
 | --- | --- |
-| Django | `ALLOWED_HOSTS = [".localhost"]` in settings |
-| Rails | `config.hosts << ".localhost"` in `config/environments/development.rb` |
-| Vite, SvelteKit, React Router | `server: { allowedHosts: ['.localhost'] }` in the Vite config |
-| Nuxt | `vite: { server: { allowedHosts: ['.localhost'] } }` in `nuxt.config` |
-| Astro | `server: { allowedHosts: ['.localhost'] }` in `astro.config` |
-| Next.js | `allowedDevOrigins: ['*.localhost']` in `next.config`, for HMR |
+| Django | `ALLOWED_HOSTS = [".vc.localhost"]` in settings |
+| Rails | `config.hosts << ".vc.localhost"` in `config/environments/development.rb` |
+| Vite, SvelteKit, React Router | `server: { allowedHosts: ['.vc.localhost'] }` in the Vite config |
+| Nuxt | `vite: { server: { allowedHosts: ['.vc.localhost'] } }` in `nuxt.config` |
+| Astro | `server: { allowedHosts: ['.vc.localhost'] }` in `astro.config` |
+| Next.js | `allowedDevOrigins: ['*.vc.localhost']` in `next.config`, for HMR |
 
-Angular is handled for you: its preset passes `--allowed-hosts <name>.localhost`.
+Angular is handled for you: its preset passes `--allowed-hosts <name>.vc.localhost`.
 
 ## Reference
 
@@ -99,7 +99,7 @@ Lives at the project root. Unknown keys are an error. `start` searches the curre
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `name` | string | required | Route name, served at `https://<name>.localhost`. A lowercase DNS label, at most 63 characters. `local` and `localhost` are reserved. |
+| `name` | string | required | Route name, served at `https://<name>.vc.localhost`. A lowercase DNS label, at most 63 characters. `local` and `localhost` are reserved. |
 | `cmd` | string | required | Shell command that starts the dev server. Must bind `$PORT`. |
 | `port` | integer | auto | Pin a port instead of taking one from 3000-3999. Ignored for git worktrees. |
 | `icon` | string | none | Emoji or image URL shown in the dashboard. |
@@ -133,7 +133,7 @@ Edit the file, then run `vibe-caddy restart <name>` to apply `cmd`, `icon`, `aut
 `vibe-caddy start` inside a linked worktree registers a separate route on its own port:
 
 ```
-https://<branch-slug>.<app>.localhost
+https://<branch-slug>.<app>.vc.localhost
 ```
 
 `<app>` is the `name` from the main checkout's `vibe-caddy.toml`. `<branch-slug>` is the branch name lowercased, with non-alphanumerics turned into hyphens and a leading `worktree-` removed; `--as <slug>` overrides it. `vibe-caddy prune` removes routes whose checkout is gone, and skips a route when the checkout's parent directory is also missing, so an unmounted volume does not wipe your routes.
@@ -158,7 +158,7 @@ Run `vibe-caddy <command> --help` for options. Commands marked `sudo` need root.
 | `reload` | Regenerate the Caddyfile and reload Caddy. |
 | `caddyfile [--validate]` | Print the generated Caddyfile, or validate it. |
 | `sudo caddy start\|stop\|restart` | Control the Caddy LaunchDaemon. |
-| `dashboard install` | Register the dashboard at `https://vibe.localhost`. |
+| `dashboard install` | Register the dashboard at `https://vibe.vc.localhost`. |
 | `sudo setup [--no-trust]` | Install the LaunchDaemon, trust the CA, start the dashboard. |
 | `sudo uninstall` | Remove the LaunchDaemon and untrust the CA. |
 | `doctor` | Check DNS, listeners, daemon, certificates and every route, and print a fix for each failure. Exits 1 on failure. |
@@ -181,8 +181,6 @@ vibe-caddy follows the XDG Base Directory spec. The data directory holds what ca
 
 `sudo vibe-caddy uninstall` removes the LaunchDaemon and the trusted CA. It leaves both directories in place; delete them by hand if you want them gone. Remove the CLI with `uv tool uninstall vibe-caddy`.
 
-Earlier releases used `~/.vibe-caddy`. `sudo vibe-caddy setup` migrates its registry and CA to the new layout and leaves the old directory behind. A project file named `vibe.toml` is no longer read; rename it with `mv vibe.toml vibe-caddy.toml`.
-
 ### Troubleshooting
 
 Start with `vibe-caddy doctor`.
@@ -194,7 +192,7 @@ Start with `vibe-caddy doctor`.
 | `doctor` reports a `daemon config path` mismatch. | Custom `XDG_*` variables were lost under plain `sudo`. Re-run setup with `--preserve-env` as shown above. |
 | The browser warns about the certificate. | The CA is not trusted. Run `sudo vibe-caddy setup` again without `--no-trust`, then restart the browser. |
 | The app starts but nothing answers. | Almost always the `$PORT` rule. Read `vibe-caddy logs <name>`, see which port the framework announced, pass `$PORT` explicitly, then `vibe-caddy restart <name>`. `crashed` means the process exited; the log says why. |
-| Vite says "Blocked request. This host is not allowed." | Set `server.allowedHosts: ['.localhost']` in the Vite config. Other frameworks have a similar setting; `init` prints it. |
+| Vite says "Blocked request. This host is not allowed." | Set `server.allowedHosts: ['.vc.localhost']` in the Vite config. Other frameworks have a similar setting; `init` prints it. |
 | A name shows the unknown-name page or a 404. | The route is not registered, or the name is not lowercase. Check `vibe-caddy list`. |
 
 ## Limitations
@@ -208,6 +206,24 @@ Start with `vibe-caddy doctor`.
 ## Contributing
 
 Run `just ci` before sending a change; it runs the format check, type check, tests and dependency audit. `CLAUDE.md` has the module map, test rules and `just` tasks.
+
+Run `just install` to install development dependencies and the prek Git hooks.
+The hooks check file syntax, merge conflicts, formatting, types, and tests before a commit.
+Use `just hooks` to run them on all files, or `just hooks-install` to reinstall them.
+
+`just install-cli` installs the CLI and prints the setup or reload commands to run next,
+including the dashboard refresh and managed app restarts.
+
+Run `just deps-bump` to refresh the runtime and development dependency requirements.
+The command reads dependency names from `pyproject.toml`, removes the old requirements,
+and re-adds them with `uv add` without supplying versions or bounds.
+Perl calculates the date five days ago for `uv add --exclude-newer`.
+It preserves extras, environment markers, and dependency groups, then updates `uv.lock`
+and syncs the environment. If a step fails, it restores the dependency files.
+
+Dependabot checks Python dependencies and GitHub Actions weekly.
+CI runs the hooks on pull requests and pushes to `main`.
+The dependency audit also runs daily, and a vulnerability fails its GitHub check.
 
 ## License
 

@@ -739,7 +739,7 @@ def framework_rows() -> list[FrameworkRow]:
     """Every framework preset with the command it generates, ordered for display."""
     return [
         FrameworkRow(
-            preset.name, preset.label, frameworks.render_cmd(preset.cmd, "<name>.localhost")
+            preset.name, preset.label, frameworks.render_cmd(preset.cmd, paths.hostname("<name>"))
         )
         for preset in sorted(frameworks.REGISTRY.values(), key=lambda f: (f.label.lower(), f.name))
     ]
