@@ -1,14 +1,17 @@
 # CLAUDE.md
 
-Guidance for working on vibe-caddy itself. `README.md` holds the user-facing docs.
+Use this file when you work on vibe-caddy. `README.md` contains the documentation for users.
 
 ## What this is
 
-vibe-caddy is a stateless Typer CLI (`vibe-caddy`, Python 3.14, uv-only). It maps `https://<name>.localhost` to local dev servers. Three tools do the work:
+vibe-caddy is a stateless Typer CLI. The CLI uses Python 3.14 and uv.
+The CLI maps `https://<name>.vc.localhost` to local development servers.
+The dashboard uses `https://vibe.vc.localhost`.
+Three tools provide the system functions:
 
 | Task | Tool |
 | --- | --- |
-| Name resolution | The built-in `*.localhost` handling of macOS |
+| Name resolution | macOS resolves names under `.localhost` to loopback. This includes `.vc.localhost`. |
 | TLS and proxying | Caddy |
 | Process supervision | launchd |
 
@@ -16,29 +19,39 @@ There is no vibe daemon.
 
 ## Architecture invariant
 
-`$XDG_DATA_HOME/vibe-caddy/registry.json` (default `~/.local/share/vibe-caddy`) is the single source of truth. The registry produces the Caddyfile and the launchd plists. Call them derived files.
+The registry is the single source of truth.
+The registry file is `$XDG_DATA_HOME/vibe-caddy/registry.json`.
+The default location is `~/.local/share/vibe-caddy/registry.json`.
+The registry produces the Caddyfile and the plists. These files are derived files.
 
 | Derived file | Location |
 | --- | --- |
 | Caddyfile | `$XDG_STATE_HOME/vibe-caddy/Caddyfile` (default `~/.local/state/vibe-caddy`) |
 | launchd plists | `$XDG_STATE_HOME/vibe-caddy/launchd/*.plist` |
 
-Nothing reads the derived files back. Never edit them by hand. Never add code that parses them to learn state. To change state, change the registry through `registry.transaction()`. Then regenerate the derived files with `caddy.write`/`caddy.reload` or `launchd.write_plist`.
+Never edit the derived files by hand.
+Never parse the derived files to obtain route state.
+Change the registry through `registry.transaction()`.
+Regenerate the derived files with `caddy.write`, `caddy.reload`, or `launchd.write_plist`.
 
-Every mutation in `service.py` has the same four steps:
+Use this sequence for registry mutations in `service.py`:
 
 1. Take the registry lock.
 2. Change the registry.
-3. Leave the lock.
-4. Reload Caddy with the snapshot.
+3. Release the registry lock.
+4. Call `caddy.reload`.
 
 The CLI and the dashboard both go through `service.py`.
+
+`caddy.reload` reads the current registry under a separate publication lock.
+This lock prevents an older configuration from replacing a newer configuration.
+Do not pass a registry snapshot to `caddy.reload`.
 
 ## Module map (`src/vibe_caddy/`)
 
 | Module | Role |
 | --- | --- |
-| `cli.py` | Typer app with every command, output formatting and error display. No business logic. |
+| `cli.py` | Defines the Typer commands. Formats output and errors. Contains no business logic. |
 | `service.py` | Route lifecycle (register, update, deregister, start, stop, restart, prune, `start_project`) and `RouteStatus`. The CLI and the dashboard share it. |
 | `registry.py` | Loads, saves and locks `registry.json`. Checks port claims. `transaction()` holds an exclusive `flock` for the read-modify-write. |
 | `models.py` | Pydantic models: `Route`, `RouteType`, `RegistryData`, `ProjectConfig` (the `vibe-caddy.toml` schema). |
@@ -46,35 +59,61 @@ The CLI and the dashboard both go through `service.py`.
 | `frameworks.py` | Preset registry (`REGISTRY`, 20 `Framework` objects), `detect()` and `render_cmd()`. The authority for every preset command and note. |
 | `caddy.py` | Renders the Caddyfile. Controls Caddy through the admin API (`is_running`, `is_ours`, `foreign_instance`, `validate`, `reload`). |
 | `launchd.py` | Renders app plists. Wraps `launchctl` bootstrap, bootout, kickstart and print. Tails logs. |
-| `install.py` | System footprint: root LaunchDaemon, port preflight, Docker hint, CA trust and untrust, root handling. |
+| `install.py` | Installs the root daemon. Checks ports. Controls CA trust and ownership. |
+| `provision.py` | Controls setup, removal, and installation of the dashboard. |
 | `doctor.py` | Diagnostic checks. Each check returns a `Check` with a fix command. |
-| `paths.py` | Every filesystem location and constant (ports, labels, TLD). `paths.home()` is the test seam. `data_dir()` and `state_dir()` resolve the XDG directories. |
+| `paths.py` | Defines paths and constants. `paths.home()` supplies the test seam. `paths.TLD` contains the hostname suffix `vc.localhost`. |
 | `ports.py` | Free-port probing on both loopback families, `lsof` holder lookup, and auto-assignment in 3000-3999. |
-| `names.py` | Route-name validation and slugification. |
+| `names.py` | Validates route names. Converts text to route names. |
 | `gitwt.py` | Git worktree detection, and branch and slug derivation. |
 | `errors.py` | `VibeError` (with `hint`), `NotFound`, `Conflict`, `SetupRequired`. |
 | `dashboard/` | FastAPI app (`app.py`), Jinja templates, static assets. The JSON API is under `/_api`. The middleware holds the CSRF guard. |
 
 ## Dev loop
 
-All tooling goes through uv. `uv format` (Ruff formatter) and `uv check` (ty) are uv-native preview commands. `[tool.uv] preview-features` in `pyproject.toml` enables them. Ruff and ty are not dev dependencies. Do not add them. The only dev dependencies are `pytest` and `pytest-cov`.
+Use uv for all tools.
+`uv format` uses Ruff. `uv check` uses ty.
+These commands use preview features from `[tool.uv]` in `pyproject.toml`.
+Do not add Ruff or ty as dependencies.
+The development dependencies are `prek`, `pytest`, and `pytest-cov`.
+
+Runtime and development dependencies use uv's default lower bounds.
+Use `just deps-bump` to refresh these requirements.
+The command removes the current requirements and adds the package names with `uv add`.
+Do not supply versions or bounds when you refresh the requirements.
+The Just recipe uses Perl to calculate the date five days ago.
+The command passes that date to `uv add --exclude-newer`.
 
 | Command | What it does |
 | --- | --- |
 | `just all` | Runs `uv format`, `uv check` and tests. Run it before every commit. |
 | `just ci` | Runs `uv format --check`, `uv check`, tests and `uv audit`. CI runs the same steps. |
+| `just deps-bump` | Reads the dependencies. Removes the requirements. Uses normal `uv add` behavior. Updates the lock and environment. |
+| `just install` | Installs dependencies and the prek Git hooks. |
+| `just hooks-install` | Installs the prek Git hooks. |
+| `just hooks` | Runs all prek hooks on all files. |
 | `just test [ARGS]` | Runs `uv run pytest [ARGS]`. |
 | `just cov` | Runs tests with coverage. |
 | `just caddyfile` | Prints the Caddyfile for the current registry. |
 | `just validate` | Prints the Caddyfile, then validates it with the real `caddy`. |
 | `just dashboard [PORT]` | Runs the dashboard in the foreground (default 7999). |
-| `just install-cli` | Runs `uv tool install --force --reinstall .`. |
+| `just install-cli` | Installs the CLI. Prints setup, reload, dashboard, and app restart commands. |
 
 Python is `>=3.14`. The code uses `except A, B:` without parentheses (PEP 758). The code also uses `from __future__ import annotations`.
 
+The prek hooks use `.pre-commit-config.yaml`.
+The hooks check merge conflicts, YAML, TOML, formatting, types, and tests.
+The file checks use the built-in tools from the prek version in `uv.lock`.
+The Python checks use uv's managed tools and the project dependencies.
+
+Dependabot checks the uv dependencies and GitHub Actions each week.
+The uv updates use a five-day delay after each release.
+CI runs the hooks on macOS for each pull request and push to `main`.
+CI runs `uv audit --locked` each day and for each pull request and push to `main`.
+
 ## Testing rules
 
-- Isolate `paths.home` to a tmp dir in every test.
+- Isolate `paths.home` in a temporary directory in every test.
   - `tests/conftest.py` does this with an autouse fixture (`isolated_home`).
   - The fixture monkeypatches `paths.home` to `tmp_path`.
   - The fixture removes `SUDO_USER`.
@@ -82,15 +121,18 @@ Python is `>=3.14`. The code uses `except A, B:` without parentheses (PEP 758). 
   - Do not bypass the fixture. Do not construct paths from `Path.home()` in tests.
 - Never call the real `launchctl`, `security`, or `caddy reload`/`caddy trust`/`caddy run`.
   - Use the `reloads` fixture to replace `caddy.reload` when the code under test calls it.
-  - Add a stub for anything new that shells out to a privileged or stateful tool.
+  - Add a stub for each new subprocess call that uses privileges or changes system state.
 - The Caddy tests (`tests/test_caddy.py`) shell out to the real `caddy` binary for `caddy validate` and `caddy fmt --diff`.
   - The tests skip when `caddy` is not installed.
-  - The generator must stay `caddy fmt` clean: tabs for indentation, and exactly the spacing that Caddy produces.
+  - The generated Caddyfile must match `caddy fmt` output.
+  - Use tabs for indentation. Use the spacing that Caddy produces.
+  - Use `caddy adapt` to check certificate policies without starting Caddy.
   - If you change `caddy.render`, run `just test tests/test_caddy.py` with Caddy installed.
 - Do not touch the real `~/.local/share/vibe-caddy` or `~/.local/state/vibe-caddy`.
   - For manual probing, run `HOME=/tmp/some-dir uv run vibe-caddy ...`.
-  - `XDG_DATA_HOME` and `XDG_STATE_HOME` take precedence over `HOME`. Unset them, or point them into the tmp dir.
-  - Remember that `service.register` calls `caddy.reload`.
+  - `XDG_DATA_HOME` and `XDG_STATE_HOME` take precedence over `HOME`.
+  - Clear both variables, or set both variables to temporary directories.
+  - `service.register` calls `caddy.reload`.
   - That call pushes to a live vibe-caddy Caddy on port 2019 if one runs.
 
 ## Conventions
@@ -98,20 +140,25 @@ Python is `>=3.14`. The code uses `except A, B:` without parentheses (PEP 758). 
 - Set the line length to 100 (`[tool.ruff] line-length`) and the target to `py314`.
 - Write Google-style docstrings (`Args:`, `Returns:`, `Raises:`) on public functions that need them.
 - Write comments that explain why, not what.
-- Raise `VibeError` (or a subclass) with a `hint` for user-facing failures. `cli.fail` prints these errors. Do not let tracebacks reach the user for expected conditions.
+- Raise `VibeError` or a subclass for expected errors.
+- Supply a `hint` for errors that users can repair.
+- Use `cli.fail` to display expected errors.
+- Do not show tracebacks for expected errors.
 - Pass `timeout=` and `check=False` in subprocess calls. Handle the result explicitly.
 - Dependencies: `fastapi`, `httpx2`, `jinja2`, `pydantic`, `rich`, `typer`, `uvicorn`. Keep the list short.
 
 ## Writing style for agent-facing text
 
-Write all text that an AI agent ingests in ASD-STE100 (Simplified Technical English). This covers `CLAUDE.md`, `AGENTS.md` and any future skill or prompt file in the repo.
+Use ASD-STE100 Simplified Technical English for text that AI agents read.
+Apply these rules to `CLAUDE.md`, `AGENTS.md`, and future skills or prompts in this repository.
 
 Rules:
 
 - Write one idea per sentence.
 - Descriptive sentences: 25 words maximum. Procedural sentences: 20 words maximum.
 - Use the active voice. Use the present tense for statements that are always true.
-- Use one word for one meaning. In this repo the terms are: route, registry, plist, preset, data directory and state directory.
+- Use one word for one meaning.
+- Use the terms route, registry, plist, preset, data directory, and state directory consistently.
 - Write instructions as imperatives.
 - Noun clusters: 3 words maximum. Break up longer chains.
 - Use a pronoun only when its referent is unambiguous. Otherwise repeat the noun.
@@ -120,23 +167,13 @@ Rules:
 - Quote code, commands, paths, identifiers, file names and error strings exactly.
 - Put several related facts in a table or in bullets, not in one long sentence.
 
-Exempt text keeps its own style: `README.md` and other human-facing documentation, commit messages, code comments and docstrings. These texts have different audiences and different conventions. Do not change their style.
-
-Example from the rewrite of this file:
-
-```text
-Before: Never hand-edit them and never add code that parses them to learn state; change the
-registry (through `registry.transaction()`) and regenerate with `caddy.write`/`caddy.reload`
-or `launchd.write_plist`.
-
-After:  Never edit them by hand. Never add code that parses them to learn state. To change
-state, change the registry through `registry.transaction()`. Then regenerate the derived
-files with `caddy.write`/`caddy.reload` or `launchd.write_plist`.
-```
+`README.md` and other documentation for users retain their own style.
+Commit messages, code comments, and docstrings retain their own style.
+Do not apply these text rules to those documents.
 
 ## Filesystem layout
 
-The layout follows XDG and splits by durability.
+The layout follows XDG. The directories separate durable data from derived files.
 
 | Directory | Resolves from | Default | Holds |
 | --- | --- | --- | --- |
@@ -155,34 +192,68 @@ The layout follows XDG and splits by durability.
   - `/Library/LaunchDaemons/dev.vibe-caddy.caddy.plist` (root daemon).
   - `~/Library/LaunchAgents/dev.vibe-caddy.<name>.plist` (the opt-in `autostart` symlink).
 
-## Non-obvious gotchas
+## Operational rules
 
-- **`*.localhost` resolves to `::1` first.**
+### Hostname suffix
+
+- Use `paths.hostname` and `paths.url` to construct route addresses.
+- Serve routes only below `.vc.localhost`.
+- A worktree uses `<worktree>.<app>.vc.localhost`.
+- The bare names `localhost` and `vc.localhost` are not route addresses.
+- Keep `localhost` as a loopback hostname for direct connections to a server.
+- The registry stores route names. The registry does not store generated route hostnames.
+- A suffix change therefore requires no registry migration.
+- Reload Caddy after a suffix change.
+- Restart each managed route to regenerate its plist and environment.
+- Update project commands that contain a hostname.
+- Update framework settings for allowed hosts and trusted origins.
+- Caddy issues separate certificates for routes and worktrees from the local CA.
+- A certificate for `*.vc.localhost` does not cover `<worktree>.<app>.vc.localhost`.
+- The existing trusted CA remains valid after a suffix change.
+- Do not delete the CA to change the hostname suffix.
+
+### System behavior
+
+- **`*.vc.localhost` resolves to `::1` first.**
   - Caddy therefore binds both `127.0.0.1` and `::1`. Every block has `bind 127.0.0.1 ::1` (`paths.BIND_HOSTS`).
   - `ports.is_free` and `ports.is_listening` check both families for the same reason.
   - A server bound to only one family can collide with the other family. It can also be unreachable from the other family.
-- **Legacy migration.** `setup` runs `install.migrate_legacy()`. The function:
-  - moves `registry.json` and `caddy/` into the data directory. The old location is `~/.vibe-caddy`, which `paths.legacy_dir()` returns;
-  - skips any target that already holds data;
-  - writes `MOVED.txt` in the old directory;
-  - does not delete the old directory.
-  - It does not migrate derived files, because they embed stale absolute paths. The next command regenerates them.
+- **Legacy migration.** `setup` runs `install.migrate_legacy()`.
+  - The function moves `registry.json` and `caddy/` into the data directory.
+  - `paths.legacy_dir()` returns the old location, `~/.vibe-caddy`.
+  - The function skips a destination that already contains data.
+  - The function writes `MOVED.txt` in the old directory.
+  - The function keeps the old directory.
+  - The function does not move derived files because those files contain old absolute paths.
+  - The next command regenerates derived files.
   - `doctor` warns (`legacy layout`) while the old directory still holds a registry.
 - **The `doctor` check `daemon config path`** compares the `--config` path in the installed LaunchDaemon plist with `paths.caddyfile()`.
-  - The two paths differ when both of these conditions are true: a custom `XDG_STATE_HOME` is set, and `setup` runs under plain `sudo`. Plain `sudo` resets the environment.
+  - Plain `sudo` clears custom XDG variables and can cause these paths to differ.
   - The suggested fix is `sudo --preserve-env=XDG_STATE_HOME,XDG_DATA_HOME vibe-caddy setup`.
-- **The code pins the Caddy data directory through `XDG_DATA_HOME`** to `<data dir>/caddy` (`paths.caddy_data_dir()`).
-  - The pin is in three places: the LaunchDaemon plist, `caddy.caddy_env()` and `install.trust_ca`.
-  - The root daemon and the `caddy trust` of the user must share one CA. Otherwise the keychain trusts a root that signs nothing.
-  - The code pins `HOME` alongside `XDG_DATA_HOME`.
-- **`paths.home()` follows `SUDO_USER`** when the process is root. `setup` runs under sudo, but it must write into the data and state directories of the invoking user. `install.chown_to_user` hands both directories back to that user afterwards.
-- **App plists live in `<state dir>/launchd`, not `~/Library/LaunchAgents`.** Registering an app therefore does not start the app at login. Only routes with `autostart = true` get a symlink into LaunchAgents. `launchd.write_plist` creates and removes that symlink.
-- **`caddy.is_ours()` exists for one reason.** vibe-caddy must never reconfigure another user's Caddy.
-  - It looks for the loopback `ask` listener (`paths.CADDY_ASK_PORT`, 2021) in the running config. Every config that vibe-caddy generates has this listener.
-  - `reload` refuses when another process holds the admin port. With `require_running=False`, `reload` skips silently instead.
-  - Do not remove the `ask` listener from the generated config without a replacement signature.
+- **The code sets `XDG_DATA_HOME`** to `paths.caddy_data_dir()` for Caddy.
+  - The daemon plist, `caddy.caddy_env()`, and `install.trust_ca` use the same value.
+  - The root daemon and `caddy trust` must use the same CA.
+  - The code also sets `HOME` to `paths.home()`.
+- **`paths.home()` follows `SUDO_USER`** when the process runs as root.
+  - `setup` writes into the invoking user's data directory and state directory.
+  - `install.chown_to_user` returns both directories to the invoking user after setup.
+- **App plists reside in `<state dir>/launchd`.**
+  - Registration does not start an app at login.
+  - Only `autostart = true` creates a symlink in `~/Library/LaunchAgents`.
+  - `launchd.write_plist` creates or removes that symlink.
+- **`caddy.is_ours()` identifies the Caddy instance.**
+  - The function checks for the loopback `ask` listener on `paths.CADDY_ASK_PORT`, port 2021.
+  - Every generated configuration includes this listener.
+  - `caddy.reload` refuses to change another Caddy instance.
+  - With `require_running=False`, the reload skips that instance without an error.
+  - Do not remove the listener without another method to identify the instance.
 - **Each route lists both `https://host` and `http://host`.** Caddy therefore proxies plain HTTP and does not redirect it.
-- **Catch-all plus on-demand TLS.** Unregistered names fall through to a hostname-less block. That block proxies to the dashboard (route name `vibe`, `paths.DASHBOARD_ROUTE`). It returns a 404 string when the dashboard is not registered. The `ask` endpoint gates certificate issuance for arbitrary names. The endpoint admits only `*.localhost`.
+- **Fallback and on-demand TLS.**
+  - Unregistered names below `.vc.localhost` reach the dashboard through the block without a hostname.
+  - The dashboard route name is `vibe`, from `paths.DASHBOARD_ROUTE`.
+  - The block returns a 404 string when no dashboard is registered.
+  - The block returns a 404 for hostnames outside `.vc.localhost`.
+  - The `ask` endpoint admits certificate requests only for names below `.vc.localhost`.
 - **`ws_origin_rewrite`** rewrites `Origin` and `Host` only on WebSocket upgrade requests (`@upgrade` matcher). Next.js HMR needs it.
 - **Launchd job shape:**
   - Command: `<login shell> -lc <cmd>`. This form lets version-manager shims resolve.
@@ -191,17 +262,33 @@ The layout follows XDG and splits by durability.
   - Restart policy: `KeepAlive: {SuccessfulExit: false}` with a 10 s throttle.
   - Environment: `PORT`, `PORT_<KEY>`, `VIBE_ROUTE`, `VIBE_URL`, `VIBE_HOSTNAME`.
 - **Worktree routes** follow three rules:
-  - They take the app name from the `vibe-caddy.toml` of the main checkout.
-  - They never inherit a pinned `port`.
-  - Prune removes them only when the parent directory of the checkout still exists. An unmounted volume must not wipe the registry.
-- **On re-`start`, only `cmd`, `dir`, `icon`, `autostart`, `ws_origin_rewrite` refresh** from `vibe-caddy.toml`. The route keeps `port` and `reserve_ports` from the first registration.
+  - Worktree routes use the app name from the main checkout's `vibe-caddy.toml`.
+  - Worktree routes do not inherit a fixed port.
+  - Prune removes a missing worktree only when the checkout's parent directory exists.
+  - This rule preserves routes on an unmounted volume.
+- **Repeated `start` refreshes the route.**
+  - The command reads `cmd`, `dir`, `icon`, `autostart`, and `ws_origin_rewrite` from `vibe-caddy.toml`.
+  - The route retains its original `port` and `reserve_ports`.
 - **`restart` also re-reads `vibe-caddy.toml`** (`service._refresh_from_project`).
-  - It reads the file in the `dir` of the route. It refreshes `cmd`, `icon`, `autostart` and `ws_origin_rewrite`, but never `port`.
-  - `restart` uses the stored values in three cases: the route has no `dir`, the route has no file, or the file fails `project.load`. Thus a half-edited file cannot block a restart.
+  - The function reads `vibe-caddy.toml` in the route's directory.
+  - The function refreshes `cmd`, `icon`, `autostart`, and `ws_origin_rewrite`.
+  - The function keeps the port.
+  - `restart` uses stored values when the directory or file is absent, or when `project.load` fails.
+  - A file with incomplete edits therefore cannot block a restart.
   - Earlier docs claimed that `restart` picked up edits. It did not.
-- **No `vibe.toml` fallback.** The file now has the name `vibe-caddy.toml` (`project.CONFIG_NAME`). `start_project` raises `NotFound` only when it finds no `vibe-caddy.toml`. The error names a leftover `vibe.toml` and gives the exact `mv` command. Honouring both names would leave two files that can disagree.
-- **Framework presets exist because a command that ignores `$PORT` looks like a working app.** The app binds the framework default port. Caddy proxies to the assigned port. The route answers nothing. These rules apply in `frameworks.py`:
-  - Commands start with `exec`. They call project-local binaries (`./node_modules/.bin/vite`, `bin/rails`), not `npm run` or `bundle exec`. A wrapper stays the PID that launchd tracks, and the real server becomes an untracked child.
+- **The project file is `vibe-caddy.toml`.**
+  - `project.CONFIG_NAME` contains this file name.
+  - Do not add a fallback to `vibe.toml`.
+  - `start_project` raises `NotFound` when no `vibe-caddy.toml` exists.
+  - The error identifies a remaining `vibe.toml` and supplies the exact `mv` command.
+  - Two accepted file names could produce conflicting configurations.
+- **Each framework preset must bind `$PORT`.**
+  - An app can start on the framework's default port while Caddy proxies to a different port.
+  - This condition leaves the route unreachable.
+  - Start preset commands with `exec`.
+  - Use project binaries such as `./node_modules/.bin/vite` and `bin/rails`.
+  - Do not use wrappers such as `npm run` or `bundle exec` in presets.
+  - launchd must track the actual server process.
   - Disable re-exec auto-reloaders (Django, Flask, FastAPI `dev`, Nuxt's fork) for the same reason.
   - Bind servers to `127.0.0.1` explicitly. `localhost` can resolve to `::1` while Caddy dials `127.0.0.1`.
   - `express` and `go` cannot pass the port. They set `reads_port_env` and carry a note.
@@ -214,9 +301,20 @@ The layout follows XDG and splits by durability.
   - `init` never writes the port to the file.
   - Detection ties break on `Framework.priority` (Next and SvelteKit over Vite, FastAPI over uvicorn).
   - Content checks (`detect_contains`) confirm ambiguous marker files such as `manage.py`.
-- **Dashboard CSRF guard** (`dashboard/app.py`). The API is unauthenticated. Route creation runs shell commands. The guard refuses non-safe methods on `Sec-Fetch-Site: cross-site` or an untrusted `Origin`. The guard excludes bookmark hostnames from the trusted origins on purpose. The guard allows a missing `Origin` (CLI, curl). Keep that behavior when you add endpoints.
-- **`deregister --all` spares the dashboard.** `service.removable()` filters out `paths.DASHBOARD_ROUTE` unless the caller asks for it. It also orders worktree routes before their parent. A parent is thus never dropped while a child still points at it.
-- **Bulk removal goes through `service.deregister_many()`.** That function edits the registry once and reloads Caddy once. Looping `deregister()` publishes every intermediate state and does N times the work.
+- **Dashboard CSRF guard** (`dashboard/app.py`).
+  - The API has no authentication.
+  - Route creation runs shell commands.
+  - The guard rejects unsafe methods with `Sec-Fetch-Site: cross-site` or an untrusted `Origin`.
+  - The guard excludes bookmark hostnames from trusted origins.
+  - The guard permits requests without `Origin`, such as CLI and curl requests.
+  - Keep this behavior when you add endpoints.
+- **`deregister --all` preserves the dashboard.**
+  - `service.removable()` filters `paths.DASHBOARD_ROUTE` unless the caller requests its removal.
+  - The function orders worktrees before their parent.
+  - This order prevents removal of a parent while a child still refers to that parent.
+- **Use `service.deregister_many()` for bulk removal.**
+  - The function changes the registry once and reloads Caddy once.
+  - Do not loop over `deregister()` for bulk removal.
 - **Names:** lowercase DNS labels with at most one dot (`<worktree>.<app>`). Reserved names: `local` and `localhost`.
 
 ## Known inconsistencies in the code

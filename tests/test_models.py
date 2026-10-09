@@ -68,9 +68,9 @@ def test_all_ports_of_bookmark_is_empty() -> None:
         ),
         (
             {"type": RouteType.BOOKMARK, "port": None, "url": "https://example.com", "proxy": True},
-            "https://web.localhost",
+            "https://web.vc.localhost",
         ),
-        ({}, "https://web.localhost"),
+        ({}, "https://web.vc.localhost"),
     ],
 )
 def test_href(fields: dict[str, object], href: str) -> None:
@@ -94,4 +94,4 @@ def test_managed_property(route_type: RouteType, managed: bool) -> None:
 
 
 def test_hostname() -> None:
-    assert make().hostname == "web.localhost"
+    assert make().hostname == "web.vc.localhost"

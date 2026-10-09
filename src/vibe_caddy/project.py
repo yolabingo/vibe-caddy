@@ -16,7 +16,7 @@ CONFIG_NAME = "vibe-caddy.toml"
 LEGACY_CONFIG_NAME = "vibe.toml"
 
 TEMPLATE = """\
-# vibe-caddy project config -- https://<name>.localhost
+# vibe-caddy project config -- https://<name>.vc.localhost
 name = {name}
 
 # Shell command that starts the dev server. It MUST bind the port vibe-caddy

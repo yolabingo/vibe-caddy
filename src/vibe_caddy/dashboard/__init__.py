@@ -1,4 +1,4 @@
-"""The vibe-caddy web dashboard, served at https://vibe.localhost."""
+"""The vibe-caddy web dashboard, served at https://vibe.vc.localhost."""
 
 from __future__ import annotations
 

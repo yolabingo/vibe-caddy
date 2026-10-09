@@ -26,7 +26,7 @@ err_console = Console(stderr=True)
 
 app = typer.Typer(
     name="vibe-caddy",
-    help="Friendly https://<name>.localhost names for local dev servers.",
+    help="Friendly https://<name>.vc.localhost names for local dev servers.",
     add_completion=True,
     rich_markup_mode="rich",
 )
@@ -268,7 +268,7 @@ def _print_frameworks() -> None:
 
 @app.command(rich_help_panel=PANEL_ROUTES)
 def register(
-    name: Annotated[str, typer.Argument(help="Hostname label: <name>.localhost")],
+    name: Annotated[str, typer.Argument(help="Hostname label: <name>.vc.localhost")],
     port: Annotated[int | None, typer.Argument(help="Port the app already listens on.")] = None,
     url: Annotated[
         str | None, typer.Option("--url", help="Make this a bookmark to an external URL.")
@@ -602,7 +602,7 @@ def dashboard_serve(
 
 @dashboard_app.command("install")
 def dashboard_install() -> None:
-    """Register the dashboard as a managed route at https://vibe.localhost."""
+    """Register the dashboard as a managed route at https://vibe.vc.localhost."""
     try:
         provision.install_dashboard()
     except VibeError as exc:

@@ -24,6 +24,10 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # who redirects them would otherwise have tests write outside tmp_path.
     for variable in ("XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
         monkeypatch.delenv(variable, raising=False)
+    # Git hooks export repository paths that would redirect Git commands in
+    # temporary projects back to this worktree instead of the test's checkout.
+    for variable in ("GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"):
+        monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(paths, "home", lambda: tmp_path)
 
     def inert_run(*args: str, check: bool = False) -> subprocess.CompletedProcess[str]:

@@ -1,0 +1,26 @@
+repos:
+  - repo: builtin
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+  - repo: local
+    hooks:
+      - id: uv-format
+        name: uv format
+        entry: uv format --check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: uv-check
+        name: uv check
+        entry: uv check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -197,7 +197,7 @@ _NODE_BIN = "exec ./node_modules/.bin"
 
 _VITE_HOSTS = (
     "Vite blocks unknown Host headers. Add "
-    "server: {{ allowedHosts: ['.localhost'] }} to your Vite config."
+    "server: {{ allowedHosts: ['.vc.localhost'] }} to your Vite config."
 )
 
 _register(
@@ -212,8 +212,8 @@ _register(
         detect_contains=("DJANGO_SETTINGS_MODULE", "django"),
         detect_python=("django",),
         notes=(
-            'Add ALLOWED_HOSTS = [".localhost"] to settings (the leading dot covers subdomains).',
-            'Add CSRF_TRUSTED_ORIGINS = ["https://*.localhost"]; the scheme is required.',
+            'Add ALLOWED_HOSTS = [".vc.localhost"] to settings (the leading dot covers subdomains).',
+            'Add CSRF_TRUSTED_ORIGINS = ["https://*.vc.localhost"]; the scheme is required.',
         ),
         priority=30,
     ),
@@ -288,7 +288,7 @@ _register(
         label="Next.js",
         cmd=f"{_NODE_BIN}/next dev --hostname 127.0.0.1 --port $PORT",
         detect_packages=("next",),
-        notes=("Add allowedDevOrigins: ['*.localhost'] to next.config for HMR from this host.",),
+        notes=("Add allowedDevOrigins: ['*.vc.localhost'] to next.config for HMR from this host.",),
         priority=40,
     ),
     Framework(
@@ -298,7 +298,7 @@ _register(
         # the real server. --no-tui stops it drawing a terminal UI into the log.
         cmd=f"{_NODE_BIN}/nuxt dev --host 127.0.0.1 --port $PORT --strictPort --no-fork --no-tui",
         detect_packages=("nuxt",),
-        notes=("Add vite: {{ server: {{ allowedHosts: ['.localhost'] }} }} to nuxt.config.",),
+        notes=("Add vite: {{ server: {{ allowedHosts: ['.vc.localhost'] }} }} to nuxt.config.",),
         priority=40,
     ),
     Framework(
@@ -310,7 +310,7 @@ _register(
         cmd=f"{_NODE_BIN}/astro dev --ignore-lock --host 127.0.0.1 --port $PORT",
         detect_packages=("astro",),
         notes=(
-            "Add server: {{ allowedHosts: ['.localhost'] }} to astro.config.",
+            "Add server: {{ allowedHosts: ['.vc.localhost'] }} to astro.config.",
             "Astro has no strict-port flag: if the port is taken it moves to another one.",
         ),
         priority=40,
@@ -363,7 +363,7 @@ _register(
         cmd="exec bin/rails server -b 127.0.0.1 -p $PORT -P tmp/pids/vibe-$PORT.pid",
         detect_files=("config/application.rb", "Gemfile"),
         detect_contains=("rails",),
-        notes=('Add config.hosts << ".localhost" to config/environments/development.rb.',),
+        notes=('Add config.hosts << ".vc.localhost" to config/environments/development.rb.',),
         priority=35,
     ),
     Framework(

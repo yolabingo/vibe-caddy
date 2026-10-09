@@ -223,7 +223,7 @@ def create_app() -> FastAPI:
     ) -> Response:
         host = _host_of(request.headers.get("host", ""))
 
-        # Caddy sends every unregistered *.localhost name to us as a catch-all.
+        # Caddy sends every unregistered *.vc.localhost name to us as a catch-all.
         if (
             host is not None
             and host.endswith(f".{paths.TLD}")
