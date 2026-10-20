@@ -322,3 +322,13 @@ def test_concurrent_reloads_publish_the_latest_registry(
     text = paths.caddyfile().read_text()
     assert "a.vc.localhost" in text
     assert "b.vc.localhost" in text
+
+
+def test_validate_reads_error_from_caddy_log(monkeypatch):
+    """Caddy's `log` block sends errors to the log file; stderr only has INFO."""
+    paths.caddy_log().parent.mkdir(parents=True, exist_ok=True)
+    paths.caddy_log().write_text('{"level":"error","msg":"loading intermediate cert: denied"}\n')
+    done = subprocess.CompletedProcess([], 1, "", '{"level":"info","msg":"adapted"}\n')
+    monkeypatch.setattr(caddy.subprocess, "run", lambda *a, **k: done)
+    with pytest.raises(VibeError, match="intermediate cert: denied"):
+        caddy.validate("x")

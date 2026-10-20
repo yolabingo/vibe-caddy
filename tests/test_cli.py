@@ -419,6 +419,8 @@ def test_no_command_leaks_a_traceback_for_a_vibe_error(
         raise VibeError("it broke", hint="try the other thing")
 
     monkeypatch.setattr(cli, "app", broken)
+    # Typer parses sys.argv, which holds pytest's own flags (e.g. --cov).
+    monkeypatch.setattr("sys.argv", ["vibe-caddy"])
     with pytest.raises(SystemExit) as exit_info:
         cli.run()
     assert exit_info.value.code == 1
