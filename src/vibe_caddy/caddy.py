@@ -344,16 +344,34 @@ def validate(path: str | None = None) -> None:
         VibeError: quoting Caddy's own complaint, which names the offending line.
     """
     target = path or str(paths.caddyfile())
-    result = subprocess.run(
-        ["caddy", "validate", "--adapter", "caddyfile", "--config", target],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-        env=caddy_env(),
-    )
+    # A scratch data directory keeps validation off the real CA. The root daemon
+    # can leave `intermediate.key` root-owned, and an unprivileged `caddy validate`
+    # that loads it fails with "permission denied", which hides the real result.
+    with tempfile.TemporaryDirectory() as scratch:
+        result = subprocess.run(
+            ["caddy", "validate", "--adapter", "caddyfile", "--config", target],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env={**caddy_env(), "XDG_DATA_HOME": scratch},
+        )
     if result.returncode != 0:
-        raise VibeError(f"generated Caddyfile is invalid: {clean_error(result.stderr)}")
+        detail = clean_error(result.stderr)
+        if detail == NO_DETAIL:
+            # The Caddyfile's `log` block redirects errors from stderr to the log file.
+            detail = _log_tail_errors() or detail
+        raise VibeError(f"generated Caddyfile is invalid: {detail}")
+
+
+def _log_tail_errors(lines: int = 20) -> str:
+    """Return the error messages in the last lines of Caddy's log file."""
+    try:
+        tail = paths.caddy_log().read_text(errors="replace").splitlines()[-lines:]
+    except OSError:
+        return ""
+    detail = clean_error("\n".join(tail))
+    return "" if detail == NO_DETAIL else detail
 
 
 def reload(*, require_running: bool = True) -> None:
@@ -426,6 +444,9 @@ def _load_into_caddy(*, require_running: bool) -> None:
         )
 
 
+NO_DETAIL = "no detail given"
+
+
 def clean_error(stderr: str) -> str:
     """Pull the message out of Caddy's structured log output.
 
@@ -441,7 +462,7 @@ def clean_error(stderr: str) -> str:
             continue
         if record.get("level") in ("error", "fatal"):
             messages.append(str(record.get("msg", "")).strip())
-    return " ".join(message for message in messages if message) or "no detail given"
+    return " ".join(message for message in messages if message) or NO_DETAIL
 
 
 def caddy_env() -> dict[str, str]:

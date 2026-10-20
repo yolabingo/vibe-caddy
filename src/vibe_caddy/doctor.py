@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shlex
 import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -231,12 +233,38 @@ def _stale_registry() -> Iterator[Check]:
                 )
 
 
+def _ca_ownership() -> Check:
+    """Find CA files the root daemon left unreadable to this user.
+
+    ``vibe-caddy setup`` hands everything back to the user, but Caddy renews the
+    intermediate certificate later, as root, and the new files stay root-owned.
+    Only the CA is checked: the daemon also writes leaf certificates and lock
+    directories as root on every new hostname, but nothing run as the user reads
+    those. A warning, not a failure: ``caddy.validate`` no longer reads the CA.
+    """
+    root = paths.caddy_data_dir() / "caddy" / "pki"
+    if not root.exists():
+        return Check("ca file owner", Level.OK, "no CA data yet")
+    uid = os.getuid()
+    bad = [p for p in [root, *root.rglob("*")] if p.lstat().st_uid != uid]
+    if not bad:
+        return Check("ca file owner", Level.OK, "owned by you")
+    names = ", ".join(sorted(str(p.relative_to(root.parent)) for p in bad)[:4])
+    return Check(
+        "ca file owner",
+        Level.WARN,
+        f"{len(bad)} path(s) not owned by you ({names}); caddy run as you cannot read them",
+        f"sudo chown -R {os.getuid()}:{os.getgid()} {shlex.quote(str(root))}",
+    )
+
+
 def run() -> list[Check]:
     """Run every diagnostic, in the order a failure would cascade."""
     checks = [_caddy_installed(), _resolution(), _daemon(), _daemon_config_path(), _admin_api()]
     checks.extend(_listeners())
     checks.append(_caddyfile())
     checks.append(_ca())
+    checks.append(_ca_ownership())
     checks.extend(_routes())
     checks.extend(_legacy_layout())
     checks.extend(_stale_registry())

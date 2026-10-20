@@ -71,3 +71,15 @@ def test_foreign_listener_is_flagged(stubbed: None, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(ports, "is_listening", lambda port, timeout=0.3: True)
     monkeypatch.setattr(ports, "describe_holder", lambda port: "nginx")
     assert all("nginx" in c.detail and c.level is Level.FAIL for c in doctor._listeners())
+
+
+def test_ca_ownership_flags_foreign_files(stubbed: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    key = paths.caddy_data_dir() / "caddy" / "pki" / "intermediate.key"
+    key.parent.mkdir(parents=True)
+    key.write_text("x")
+    assert doctor._ca_ownership().level is Level.OK
+    monkeypatch.setattr(doctor.os, "getuid", lambda: 0)
+    check = doctor._ca_ownership()
+    assert check.level is Level.WARN
+    assert "pki/intermediate.key" in check.detail
+    assert check.fix and check.fix.startswith("sudo chown -R 0:")
