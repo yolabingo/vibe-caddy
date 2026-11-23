@@ -7,12 +7,12 @@ authors = [{ name = "Todd Jacobsen" }]
 license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.142.2",
-    "httpx2>=2.13.1",
+    "fastapi>=0.165.0",
+    "httpx2>=2.16.2",
     "jinja2>=3.1.6",
-    "pydantic>=2.13.5",
+    "pydantic>=2.14.3",
     "rich>=15.0.0",
-    "typer>=0.27.2",
+    "typer>=0.29.2",
     "uvicorn>=0.54.0",
 ]
 
@@ -56,7 +56,7 @@ python-version = "3.14"
 root = ["./src"]
 
 [tool.ty.rules]
-unresolved-import = "error"
+import-not-found = "error"
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
@@ -65,7 +65,7 @@ addopts = "--strict-markers"
 
 [dependency-groups]
 dev = [
-    "prek>=0.5.4",
-    "pytest>=9.1.1",
+    "prek>=0.5.11",
+    "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
 ]
